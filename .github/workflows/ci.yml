@@ -31,14 +31,29 @@ jobs:
       - run: cd app-android && ./gradlew testDebugUnitTest lintDebug assembleDebug
 
   zephyr: # dev-kit build + ztest on native_sim (Linux only)
+    # Not the zephyrproject-rtos/ci image: it bundles every toolchain and
+    # overflows the runner's disk. Only ARM (XIAO) and host gcc (native_sim) are needed.
     runs-on: ubuntu-latest
-    container: ghcr.io/zephyrproject-rtos/ci:v0.28.4
+    env:
+      ZEPHYR_SDK_INSTALL_DIR: /opt/zephyr-sdk-0.17.2 # matches zephyr/SDK_VERSION for v4.2.0
     steps:
       - uses: actions/checkout@v4
-        with: { path: hush }
-      - working-directory: hush
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build device-tree-compiler gperf gcc-multilib g++-multilib
+          pip install west "cmake<4" # Zephyr 4.2's SDK lookup breaks on CMake 4
+      - name: Zephyr SDK, ARM toolchain only
+        run: |
+          B=https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.2
+          curl -fsSL $B/zephyr-sdk-0.17.2_linux-x86_64_minimal.tar.xz | sudo tar xJ -C /opt
+          curl -fsSL $B/toolchain_linux-x86_64_arm-zephyr-eabi.tar.xz | sudo tar xJ -C $ZEPHYR_SDK_INSTALL_DIR
+      - name: West workspace (firmware/west.yml)
         run: |
           west init -l firmware
           west update --narrow -o=--depth=1
-          west build -b xiao_ble/nrf52840 firmware -d build/xiao
-          west twister -T firmware/tests/ztest -p native_sim --inline-logs
+          pip install -r zephyr/scripts/requirements-base.txt -r zephyr/scripts/requirements-build-test.txt -r zephyr/scripts/requirements-run-test.txt
+      - run: west build -b xiao_ble/nrf52840 firmware -d build/xiao
+      - run: west twister -T firmware/tests/ztest -p native_sim --inline-logs -O build/twister
