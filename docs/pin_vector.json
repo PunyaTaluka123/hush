@@ -1,0 +1,18 @@
+{
+  "pin": "4821",
+  "salt": "AAECAwQFBgcICQoLDA0ODw==",
+  "nonce": "8ODQwLCgkIBwYFBAMCAQAA==",
+  "argon": {
+    "iterations": 2,
+    "memorySize": 19456,
+    "parallelism": 1,
+    "hashLength": 32
+  },
+  "argon2id_hex": "fa0700886e733798aa3ce603e48c5cf36ac7a3307b464b65bf68c3062a614ed9",
+  "idempotency_key": "123e4567-e89b-42d3-a456-426614174000",
+  "purpose": "cancel",
+  "incident_id": "00000000000000000000",
+  "proof_b64": "apNKDyPYpuj6ER7krKck7O1qe+KPx2doFJmFq89I1po=",
+  "hash_key": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=",
+  "offline_hmac_hex": "56c632d8bcf4b5596b3818847c5d4fa9989efef7de7b0ef9915ac926f5268385"
+}

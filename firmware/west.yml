@@ -1,0 +1,14 @@
+# Zephyr version the firmware is verified against (upstream Zephyr; the same
+# code builds on nRF Connect SDK v3.x). Workspace in CI: west init -l firmware
+manifest:
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: v4.2.0
+      import:
+        name-allowlist: [cmsis_6, hal_nordic, mcuboot, zcbor, mbedtls, tinycrypt, segger]
+  self:
+    path: firmware

@@ -1,0 +1,12 @@
+# west workspace (CI: west init -l firmware)
+/zephyr/
+/modules/
+/bootloader/
+/.west/
+/build/
+firmware/tests/host/build/
+sim/libhushcore.so
+__pycache__/
+.pytest_cache/
+backend/*.log
+twister-out*/

@@ -1,0 +1,41 @@
+/* Dev kit wiring (same as v0.1):
+ *   FSR between D1 (switched supply) and A0, 10 kΩ from A0 to GND
+ *   vibration motor via NPN on D2 (+ flyback diode)
+ *   "case pairing button" to GND on D3
+ */
+#include <zephyr/dt-bindings/adc/nrf-saadc.h>
+
+/ {
+	zephyr,user {
+		io-channels = <&adc 0>, <&adc 7>;
+		io-channel-names = "fsr", "vbat";
+		fsr-power-gpios = <&xiao_d 1 GPIO_ACTIVE_HIGH>;
+		motor-gpios = <&xiao_d 2 GPIO_ACTIVE_HIGH>;
+		button-gpios = <&xiao_d 3 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+		vbat-enable-gpios = <&gpio0 14 GPIO_ACTIVE_LOW>;
+	};
+};
+
+&adc {
+	status = "okay";
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	channel@0 {
+		reg = <0>;
+		zephyr,gain = "ADC_GAIN_1_6";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,input-positive = <NRF_SAADC_AIN0>;
+		zephyr,resolution = <12>;
+	};
+
+	channel@7 {
+		reg = <7>;
+		zephyr,gain = "ADC_GAIN_1_6";
+		zephyr,reference = "ADC_REF_INTERNAL";
+		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+		zephyr,input-positive = <NRF_SAADC_AIN7>;
+		zephyr,resolution = <12>;
+	};
+};

@@ -1,0 +1,8 @@
+mainmenu "Hush retainer"
+
+config HUSH_DEVKIT
+	bool "Development kit: force sensor on the ADC; hall, capacitive and temperature mocked from the shell"
+	default y if BOARD_XIAO_BLE
+	select SHELL
+
+source "Kconfig.zephyr"

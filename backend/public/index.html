@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Hush</title>
+<style>
+  :root { --bg: #fff; --fg: #111; --muted: #555; --line: #ddd; --alarm: #b00020; --ok: #1b6e3a; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --muted: #aaa; --line: #333; --alarm: #ff6b6b; --ok: #6fd48f; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 34rem; margin: 0 auto; padding: 1rem; }
+  h1 { font-size: 1.4rem; margin: .5rem 0 1rem; }
+  .state { font-weight: 700; font-size: 1.2rem; }
+  .alarm { color: var(--alarm); } .ok { color: var(--ok); } .muted { color: var(--muted); }
+  input, button { font: inherit; padding: .7rem; border-radius: .5rem; border: 1px solid var(--line); width: 100%; box-sizing: border-box; margin: .3rem 0; }
+  button { background: var(--fg); color: var(--bg); border: 0; font-weight: 600; }
+  a.big { display: block; text-align: center; padding: .8rem; border-radius: .5rem; background: var(--alarm); color: #fff; font-weight: 700; text-decoration: none; margin: .5rem 0; }
+  ol { padding-left: 1.2rem; } li { margin: .2rem 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hush</h1>
+  <p id="msg" class="muted">Loading…</p>
+
+  <section id="signin" hidden>
+    <p>Sign in with the phone number the alert was sent to.</p>
+    <input id="phone" type="tel" autocomplete="tel" placeholder="+65 9123 4567">
+    <button id="send">Send code</button>
+    <input id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code" hidden>
+    <button id="verify" hidden>Sign in</button>
+    <div id="recaptcha"></div>
+  </section>
+
+  <section id="incident" hidden>
+    <p id="state" class="state"></p>
+    <p id="responders" class="muted"></p>
+    <p id="where"></p>
+    <a id="maps" class="big" target="_blank" rel="noopener noreferrer" hidden>Open location in maps</a>
+    <a class="big" href="tel:999">Call 999</a>
+    <p class="muted">Updates live as new locations arrive (about every 15 s). Do not call or text their phone.</p>
+    <h2>Location trail</h2>
+    <ol id="trail"></ol>
+  </section>
+
+  <section id="join" hidden>
+    <p><strong><span id="wname">Someone</span></strong> asked you to be one of their Hush emergency contacts.</p>
+    <p>If you accept:</p>
+    <ul>
+      <li>Hush keeps your name and phone number so it can reach you.</li>
+      <li>If they raise an alarm, Hush sends you notifications, text messages and phone calls, and shows you their live location until the alarm ends.</li>
+      <li>Locations are deleted 30 days after an alarm closes. The alarm record is kept for 1 year.</li>
+      <li>You can stop at any time by asking them to remove you.</li>
+    </ul>
+    <p>Accepting is your consent to receive these alerts (Singapore PDPA).</p>
+    <button id="accept">I accept</button>
+  </section>
+</main>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getFirestore, doc, collection, query, orderBy, limit, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-functions.js";
+
+const $ = (id) => document.getElementById(id);
+const show = (id) => { for (const s of ["signin", "incident", "join"]) $(s).hidden = s !== id; };
+const say = (t) => { $("msg").textContent = t; };
+const cfg = await (await fetch("/__/firebase/init.json")).json(); // served by Firebase Hosting
+const app = initializeApp(cfg);
+const auth = getAuth(app), fs = getFirestore(app), fn = getFunctions(app, "asia-southeast1");
+const path = location.pathname, params = new URLSearchParams(location.search);
+const STATES = {
+  OPEN_QUIET: ["Heads-up: retainer removed while armed. Waiting for them to cancel.", ""],
+  OPEN_LOUD: ["EMERGENCY: call 999 if you can't confirm they're safe.", "alarm"],
+  DURESS_ACTIVE: ["DURESS: they were forced to cancel. Call 999 now.", "alarm"],
+  CANCELLED: ["Cancelled with their PIN.", "ok"],
+  RESOLVED_BY_CONTACT: ["Resolved: a contact confirmed they're safe.", "ok"],
+  RESOLVED: ["Resolved.", "ok"],
+};
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) { say(""); show("signin"); return; }
+  if (path.startsWith("/i/")) watchIncident(path.slice(3));
+  else if (path === "/join") { say(""); show("join"); }
+});
+
+let confirmation;
+$("send").onclick = async () => {
+  try {
+    const verifier = new RecaptchaVerifier(auth, "recaptcha", { size: "invisible" });
+    confirmation = await signInWithPhoneNumber(auth, $("phone").value.replace(/\s/g, ""), verifier);
+    $("code").hidden = $("verify").hidden = false;
+    say("Code sent.");
+  } catch (e) { say("Could not send the code: " + e.code); }
+};
+$("verify").onclick = async () => {
+  try { await confirmation.confirm($("code").value.trim()); } catch (e) { say("Wrong code, try again."); }
+};
+
+$("accept").onclick = async () => {
+  try {
+    await httpsCallable(fn, "acceptInvite")({ idempotency_key: crypto.randomUUID(), wearer: params.get("w"), token: params.get("t") });
+    say("Done. You'll be alerted if they raise an alarm. Installing the Hush app gives you louder alerts that override silent mode.");
+    $("join").hidden = true;
+  } catch (e) { say("This invitation isn't valid for this phone number."); }
+};
+
+function watchIncident(id) {
+  say(""); show("incident");
+  onSnapshot(doc(fs, "incidents", id), (s) => {
+    const inc = s.data();
+    const [t, cls] = STATES[inc.state] ?? [inc.state, ""];
+    $("state").textContent = t; $("state").className = "state " + cls;
+    const r = Object.values(inc.responders ?? {}).map((x) => x.name);
+    $("responders").textContent = r.length ? `Responding: ${r.join(", ")}` : "Nobody has said they're responding yet.";
+  }, () => { show(null); say("You don't have access to this alert. Sign in with the number the alert was sent to."); });
+  onSnapshot(query(collection(fs, "incidents", id, "locations"), orderBy("t", "desc"), limit(200)), (q) => {
+    const pts = q.docs.map((d) => d.data());
+    if (!pts.length) { $("where").textContent = "No location received yet."; return; }
+    const p = pts[0], at = new Date(p.t).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    $("where").textContent = `Last known: ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)} (±${Math.round(p.acc)} m) at ${at}`;
+    $("maps").href = `https://maps.google.com/?q=${p.lat},${p.lng}`; $("maps").hidden = false;
+    $("trail").replaceChildren(...pts.slice(0, 40).map((x) => {
+      const li = document.createElement("li");
+      li.textContent = `${new Date(x.t).toLocaleTimeString("en-GB")}  ${x.lat.toFixed(5)}, ${x.lng.toFixed(5)}  ±${Math.round(x.acc)} m`;
+      return li;
+    }));
+  });
+}
+</script>
+</body>
+</html>

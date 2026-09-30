@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "incidents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "contacts", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "open", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": [
+    { "collectionGroup": "private", "fieldPath": "link_watch", "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }] },
+    { "collectionGroup": "links", "fieldPath": "contact_uid", "indexes": [{ "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }] },
+    { "collectionGroup": "events", "fieldPath": "expire_at", "ttl": true, "indexes": [] },
+    { "collectionGroup": "incidents", "fieldPath": "expire_at", "ttl": true, "indexes": [] },
+    { "collectionGroup": "outbox", "fieldPath": "expire_at", "ttl": true, "indexes": [] },
+    { "collectionGroup": "devevents", "fieldPath": "expire_at", "ttl": true, "indexes": [] },
+    { "collectionGroup": "idem", "fieldPath": "expire_at", "ttl": true, "indexes": [] }
+  ]
+}

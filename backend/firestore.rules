@@ -1,0 +1,63 @@
+rules_version = '2';
+// SPEC §11.1. Everything not matched here is denied, including outbox, idem,
+// devevents and incident audit logs: only Cloud Functions touch those.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function linkOf(wearer) {
+      return /databases/$(database)/documents/contacts/$(wearer)/links/$(request.auth.token.phone_number);
+    }
+    function activeContactOf(wearer) {
+      return exists(linkOf(wearer)) && get(linkOf(wearer)).data.state == 'active'
+        && get(linkOf(wearer)).data.contact_uid == me();
+    }
+    function validProfile() {
+      let d = request.resource.data;
+      return (!('name' in d) || (d.name is string && d.name.size() > 0 && d.name.size() <= 60))
+        && (!('phone' in d) || d.phone == request.auth.token.phone_number)
+        && (!('roles' in d) || (d.roles is map && d.roles.keys().hasOnly(['wearer', 'contact'])));
+    }
+
+    // Own profile only. Settings change through updateSettings (needs the PIN).
+    match /users/{u} {
+      allow read: if signedIn() && me() == u;
+      allow create: if signedIn() && me() == u && request.resource.data.keys().hasOnly(['name', 'roles', 'phone']) && validProfile();
+      allow update: if signedIn() && me() == u
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'roles', 'phone']) && validProfile();
+      // PIN hashes and incident pointers: server only (I1, I7)
+      match /private/{doc} { allow read, write: if false; }
+    }
+
+    match /devices/{id} {
+      allow read: if signedIn() && resource.data.owner == me();
+    }
+
+    match /contacts/{wearer}/links/{phone} {
+      allow read: if signedIn() && (me() == wearer || resource.data.contact_uid == me());
+    }
+    match /{path=**}/links/{phone} { // contact app: which wearers do I cover?
+      allow read: if signedIn() && resource.data.contact_uid == me();
+    }
+
+    // The wearer's own client reads no incident at all. Contacts read incidents
+    // of wearers they are actively linked to; they see DURESS_ACTIVE but never
+    // why (the PIN results live in /events, which nobody reads).
+    match /incidents/{id} {
+      allow get: if signedIn() && me() in resource.data.contacts && activeContactOf(resource.data.wearer);
+      allow list: if signedIn() && me() in resource.data.contacts && resource.data.open == true;
+      match /locations/{p} {
+        allow read: if signedIn() && me() in get(/databases/$(database)/documents/incidents/$(id)).data.contacts
+          && activeContactOf(get(/databases/$(database)/documents/incidents/$(id)).data.wearer);
+      }
+    }
+
+    match /push_tokens/{u}/tokens/{token} {
+      allow read, delete: if signedIn() && me() == u;
+      allow create, update: if signedIn() && me() == u
+        && request.resource.data.keys().hasOnly(['platform', 'role', 'updated_at'])
+        && request.resource.data.platform in ['android', 'ios']
+        && request.resource.data.role in ['wearer', 'contact'];
+    }
+  }
+}
