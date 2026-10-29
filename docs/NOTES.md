@@ -26,9 +26,9 @@ Counts: firmware host 2 suites (all checks pass) · sim + emulator 32 · Android
 ## Builds
 - Firmware, Zephyr v4.2.0 + SDK 0.17.2, `xiao_ble/nrf52840`: compiles with no warnings (flash 255 KB / 788 KB, RAM 50 KB). Also compiled: the DFU variant (`dfu.conf` + an MCUboot slot layout) and the ztest suite.
 - Android: `assembleDebug`, `lintDebug` (0 errors), `testDebugUnitTest`.
+- CI (`.github/workflows/ci.yml`): all four jobs pass on GitHub Actions: firmware host tests, backend e2e on the emulators, Android, and Zephyr (XIAO build + ztest on `native_sim`).
 
 ## What has not been run yet
-- **ztest on native_sim**: Linux only; wired into `.github/workflows/ci.yml` (never run; the CI file itself is untested). It also builds for the XIAO, so it can be flashed to a board.
 - **On hardware / devices**: no firmware on a XIAO, no app on a phone, no BLE between them; `sim/ble_peripheral.py` (needs `bless`) not run; no loud alert through DND on a real phone (M4); power (§5.6), BLE range, and real FCM/Twilio latency unmeasured (emulator S1 p95 0.08 s).
 - **Contact web page** (`backend/public/index.html`) not exercised in a browser.
 - **nRF Connect SDK**: verified on upstream Zephyr v4.2.0 with the same APIs; not built on NCS itself.
